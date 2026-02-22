@@ -28,32 +28,312 @@
 	<body>
 		<div class="container">
 		<h1>CS184/284A Spring 2025 Homework 1 Write-Up</h1>
-		<div style="text-align: center;">Names: </div>
+		<div style="text-align: center;">Names: Roshan Parekh & Yash Kodali</div>
 
 		<br>
 
-		Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp25">cs184.eecs.berkeley.edu/sp25</a>
+		Link to webpage: <a href="https://cal-cs184-student.github.io/hw-webpages-roshanparekh/hw1/index.html">https://cal-cs184-student.github.io/hw-webpages-roshanparekh/hw1/index.html</a>
 		
 		<br>
 
-		Link to GitHub repository: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp25">cs184.eecs.berkeley.edu/sp25</a>
-
-		<figure>
-			<img src="lion.jpg" alt="Lion" style="width:50%"/>
-			<figcaption>You can add images with captions!</figcaption>
-		</figure>
+		Link to GitHub repository: <a href="https://github.com/cal-cs184-student/hw1-rasterizer-rasterman">https://github.com/cal-cs184-student/hw1-rasterizer-rasterman</a>
 
 		<!--
 		We've already added one heading per task, to make your write-up as navigable when grading. Please fit your write-up within these sections!
 		-->
 
 		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
+			In this assignment, we built a simple software rasterizer, implementing the core stages of the graphics pipeline. Our implementation supports triangle rasterization, supersampling-based antialiasing, 
+			hierarchical transformations using transformation matrices, and texture mapping with both pixel sampling and mipmap-based level sampling.
 
-		<h2>Task 1: Drawing Single-Color Triangles</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 
-		<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
+		<h2>Task 1: Drawing Single-Color Triangles</h2>		
+			<p>
+			To rasterize a triangle, we first compute its bounding box, 
+			which is the smallest rectangle that fully encloses the triangle in screen space. 			
+			</p>
+
+			<p>
+			We then iterate over all integer pixel coordinates (x, y) inside this bounding box, 
+			starting from the top-left corner and proceeding across each row. 
+			For each pixel center, we apply the <strong>three line test</strong> 
+			to determine its position relative to the triangle. 			
+			</p>
+
+			<p>
+			To make the test independent of vertex winding order, we check whether all three 
+			function values are either non-negative or non-positive. 
+			If this condition holds, the point lies inside the triangle. 
+			We also include when the three values are all zero, so that pixels lying exactly on the triangle's 
+			edges are also rasterized, ensuring that the triangle boundary is fully colored.
+			</p>
+
+			<p>
+			Since our algorithm is itereating over the bounding box, it is no worse than an alogrithm does that
+			sampless over the bounding box.
+			</p>
+
+
+			<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="task1_simple.png" width="400px"/>
+				  <figcaption>Simple rasterization creates jaggies and skips pixels</figcaption>
+				</td>				
+			  </tr>			  
+			</table>
+		</div>
+		
+		<h2>Task 2: Antialiasing by Supersampling</h2>
+		<p>
+			In this task, we implemented supersampling to antialias triangles in the rasterizer. 
+			Supersampling works by taking multiple samples per pixel, computing the coverage of each sample within a triangle, 
+			and then averaging the results to produce a smoother final pixel color. 
+			Instead of directly writing each pixel to the framebuffer, the rasterizer first writes to a higher-resolution sample buffer 
+			that stores color values for each subpixel. 
+			The sample buffer is represented by <code>RasterizerImp::sample_buffer</code>, 
+			where each element is a <code>Color</code> object storing RGB values as floating-point numbers. 
+			The size of this buffer depends on the framebuffer dimensions and the user-adjustable sample rate, 
+			and it is updated dynamically whenever the window is resized or the sample rate changes - defined by
+			<code> width * height * sample_rate </code>
+		</p>
+
+		<p>
+			During rasterization, the <code>rasterize_triangle</code> function evaluates the coverage of each triangle at each subpixel within a pixel. 
+			The three line test per subpixel to compute which pixel falls within the bounds of the triange.
+			After all triangles in the scene have been rasterized, the supersampled colors are downsampled into the final framebuffer 
+			in the <code>resolve_to_framebuffer</code> function. 
+			This is done by averaging the <em>NxN</em> subpixels corresponding to each output pixel, 
+			where <em>N</em> is the square root of the sample rate. 
+			For example, with a sample rate of 4, each pixel contains 16 subpixels arranged in a 4x4 grid, 
+			and the final pixel color is the average of these 16 subpixels. 
+			This averaging blends the triangle color with the background color along edges, effectively smoothing jagged boundaries.
+		</p>
+
+		<p>
+			Supersampling is useful because it significantly reduces aliasing artifacts, such as jagged edges.			
+			Implementing supersampling required several modifications to the standard rasterization pipeline. 
+			The framebuffer was extended with a separate sample buffer to hold high-resolution subpixel data. 
+			In <code> resolve_to_framebuffer </code>, a new downsampling step was added to populate the final framebuffer from the supersamples. 
+			Additionally, <code>fill_pixel</code> was adapted to ensure that points and lines still render correctly 
+			by filling all corresponding subpixels with the same color, even though these functions are not antialiased.
+		</p>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="task2_1.png" width="400px"/>
+				  <figcaption>Sample Rate 1: Jagged edges visible</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="task2_4.png" width="400px"/>
+				  <figcaption>Sample Rate 4: Smoother edges</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="task2_9.png" width="400px"/>
+				  <figcaption>Sample Rate 9: A little  more smoother edges</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="task2_16.png" width="400px"/>
+				  <figcaption>Sample Rate 16: Almost fully antialiased</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<h2>Task 3: Transforms</h2>
+		Modified the SVG to make the robot look like it's running.
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="task3_running_robot.png" width="400px"/>
+				  <figcaption>Rendering a robot running</figcaption>
+				</td>			
+			  </tr>			  
+			</table>
+		</div>
+		
+		<h2>Task 4: Barycentric coordinates</h2>
+		<p>
+			In this task, we implemented <strong>barycentric interpolation</strong> to render triangles with smoothly interpolated colors. 
+			Barycentric coordinates provide a way to express any point inside a triangle as a weighted combination of the triangle's three vertices. 
+			Each weight corresponds to the "influence" of a particular vertex on that point. 
+			Mathematically, for a point <em>P</em> inside a triangle with vertices <em>A</em>, <em>B</em>, and <em>C</em>, 
+			the barycentric coordinates (<em>&alpha;, &beta;, &gamma;</em>) satisfy the equation:
+		</p>
+
+		<p style="text-align:center;">
+			P = &alpha;A + &beta;B + &gamma;C, with &alpha; + &beta; + &gamma; = 1
+		</p>
+
+		<p>
+			These weights are non-negative for points inside the triangle and can be used to interpolate vertex attributes such as color, texture coordinates, or normals. 
+			In our rasterizer, we assign a color to each vertex of the triangle, then compute the barycentric coordinates of every pixel within the triangle. 
+			The pixel color is determined by multiplying each vertex's color by its corresponding barycentric weight and summing the results. 
+			This produces a smooth gradient across the triangle, seamlessly blending the colors of the three vertices.
+		</p>
+
+		<p>
+			Here is an example to visualize the previous paragraph:
+		</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="task4_triangle.png" width="400px"/>
+				  <figcaption> Blended triangle with each corner a base RGB color</figcaption>
+				</td>			
+			  </tr>			  
+			</table>
+		</div>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="task4.png" width="400px"/>
+				  <figcaption> Colored wheel</figcaption>
+				</td>			
+			  </tr>			  
+			</table>
+		</div>
+
+		<h2>Task 5: "Pixel sampling" for texture mapping</h2>
+		<p>
+			In this task, we implemented <strong>texture mapping</strong> for triangles using pixel sampling. 
+			Texture mapping allows a 2D image to be mapped onto the surface of a triangle in the framebuffer. 
+			Each vertex of the triangle has a 2D texture coordinate, and the rasterizer interpolates these coordinates across the triangle using barycentric weights. 
+			For each pixel within the triangle, the corresponding texture coordinate is used to sample the color from the texture image.
+		</p>
+
+		<p>
+			<strong>Pixel sampling</strong> is the process of determining the color value at a non-integer coordinate in a texture. 
+			Since texture coordinates typically map to continuous positions within the image, but the texture is stored as discrete pixels, 
+			we must choose a method to compute the final pixel color. 
+			In our implementation, we supported two sampling methods: <strong>nearest-neighbor</strong> and <strong>bilinear interpolation</strong>.
+		</p>
+
+		<p>
+			Nearest-neighbor sampling selects the texel closest to the mapped texture coordinate. 
+			It is simple and fast but can produce blocky artifacts, especially when the texture is magnified or viewed at shallow angles. 
+			Bilinear sampling computes the weighted average of the four texels surrounding the mapped texture coordinate. 
+			This produces smoother results by interpolating colors and reducing the visible "pixelation" effect.
+		</p>
+
+		<p>
+			To implement this, we modified <code>RasterizerImp::rasterize_textured_triangle(...)</code> to perform per-pixel texture mapping. 
+			For each pixel inside the triangle, we first compute its interpolated texture coordinate using barycentric interpolation. 
+			Then, depending on the <code>psm</code> variable, we call either <code>Texture::sample_nearest</code> or <code>Texture::sample_bilinear</code> to obtain the pixel color from the texture. 
+			The sampled color is then written into the framebuffer, producing the final textured triangle.
+		</p>
+
+		<p>			
+			Areas with high-frequency texture details highlight the smoothing effect of bilinear interpolation.
+		</p>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="task5_nearest_1.png" width="400px"/>
+				  <figcaption>Fig. 1: Nearest-neighbor & Supersample Rate: 1</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="task5_nearest_16.png" width="400px"/>
+				  <figcaption>Fig. 2: Nearest-neighbor & Supersample Rate: 16</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="task5_bilinear_1.png" width="400px"/>
+				  <figcaption>Fig. 3: Bilinear & Supersample Rate: 1</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="task5_bilinear_16.png" width="400px"/>
+				  <figcaption>Fig. 4: Bilinear & Supersample Rate: 16</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>
+			The differences between Figures 2 and 4 are relatively subtle because high-rate supersampling with nearest-neighbor
+			captures more high-frequency details, resulting in a smoother image. In contrast, the difference between Figures 1 and 3
+			is much more noticeable. Figure 3 appears smoother due to the averaging performed by bilinear interpolation, which is
+			not applied in nearest-neighbor sampling without supersampling.
+		</p>
+
+		<p>
+			The largest difference occurs when comparing a non-supersampled nearest-neighbor image to one rendered with bilinear
+			interpolation at essentially any supersampling rate. In this case, the lack of averaging in nearest-neighbor sampling causes
+			visible blockiness and aliasing, whereas supersampling and bilinear interpolation both combine surrounding pixel
+			values to produce a much smoother and visually appealing result.
+		</p>
+
+		<h2>Task 6: "Level Sampling" with mipmaps for texture mapping</h2>
+		<p>
+			We extended texture mapping to support <strong>level sampling using mipmaps</strong>, 
+			which are precomputed, downsampled versions of the texture. Level sampling reduces aliasing when textures 
+			are minified or viewed at an angle by selecting the appropriate mipmap level for each pixel.
+		</p>
+
+		<p>
+			For each pixel, we compute barycentric-interpolated texture coordinates and the partial derivatives of the texture 
+			coordinates with respect to screen-space coordinates. These derivatives are scaled by the texture size and passed 
+			to <code>Texture::get_level</code> to determine the correct mipmap level.
+		</p>
+
+		<p>
+			We implemented three strategies: <strong>L_ZERO</strong> samples the full-resolution texture, 
+			<strong>L_NEAREST</strong> selects the nearest mipmap level, and <strong>L_LINEAR</strong> performs trilinear 
+			sampling by interpolating between two adjacent levels. Combined with nearest or bilinear pixel sampling, trilinear 
+			filtering provides smooth textures at varying distances.
+		</p>
+
+		<p>
+			Level sampling allows tradeoffs between speed, memory, and antialiasing quality. L_ZERO is fast but prone to aliasing, 
+			L_NEAREST reduces aliasing with moderate cost, and L_LINEAR gives the smoothest results at higher computational cost. 
+			Supersampling further reduces aliasing but increases memory and computation.
+		</p>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="task6_zero_near.png" width="400px"/>
+				  <figcaption>Fig. 1: Level Sample: Zero & Pixel Sample: Nearest</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="task6_zero_bilinear.png" width="400px"/>
+				  <figcaption>Fig. 2: Level Sample: Zero & Pixel Sample: Bilinear</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="task6_near_near.png" width="400px"/>
+				  <figcaption>Fig. 3: Level Sample: Nearest & Pixel Sample: Nearest</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="task6_near_bilinear.png" width="400px"/>
+				  <figcaption>Fig. 4: Level Sample: Nearest & Pixel Sample: Bilinear</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>
+			The distinction between the different sampling methods can be seen when looking at the building
+			on the left
+		</p>
+
+		<!-- <h2>(Optional) Task 7: Extra Credit - Draw Something Creative!</h2>
+		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. -->
+
+		<!-- <h2>Additional Notes (please remove)</h2>
 		<div style="display: flex; flex-direction: column; align-items: center;">
 			<table style="width: 100%; text-align: center; border-collapse: collapse;">
 			  <tr>
@@ -78,26 +358,6 @@
 			  </tr>
 			</table>
 		</div>
-		
-		<h2>Task 2: Antialiasing by Supersampling</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-		<h2>Task 3: Transforms</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-		<h2>Task 4: Barycentric coordinates</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-		<h2>Task 5: "Pixel sampling" for texture mapping</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-		<h2>Task 6: "Level Sampling" with mipmaps for texture mapping</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-		<h2>(Optional) Task 7: Extra Credit - Draw Something Creative!</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-		<h2>Additional Notes (please remove)</h2>
 		<ul>
 			<li>You can also add code if you'd like as so: <code>code code code</code></li>
 			<li>If you'd like to add math equations, 
@@ -107,6 +367,6 @@
 				</ul>
 			</li>
 		</ul>
-		</div>
+		</div> -->
 	</body>
 </html>
