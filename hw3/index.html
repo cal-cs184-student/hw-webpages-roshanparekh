@@ -45,7 +45,19 @@
 		-->
 
 		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
+		<p>
+		In this project, we built a physically-based renderer from scratch using 
+		Monte Carlo path tracing. We started with the basics of generating camera 
+		rays and figuring out intersections with triangles and spheres. Since checking 
+		every primitive is way too slow, we built a Bounding Volume Hierarchy (BVH) 
+		to speed up the intersection tests. Once that was working, we moved on to the 
+		actual lighting, implementing both direct and multi-bounce indirect illumination 
+		to get realistic global illumination effects like soft shadows and color bleeding. 
+		Finally, we added adaptive sampling so we didn't have to waste time tracing 
+		thousands of rays for pixels that were already converged. The coolest part of 
+		the project was seeing how all the physics math translates into a realistic 
+		image, and we definitely learned why optimization matters in graphics.
+		</p>
 
 		<h2>Part 1: Ray Generation and Scene Intersection</h2>
 		<p>
